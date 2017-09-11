@@ -8,6 +8,8 @@ MySQL/SQLite logging plugin for ZNC IRC bouncer written in Python 3
 3. Make sure `modpython` is enabled.
 4. Enable module `zlog_sql` and set its argument.
 
+![Screenshot](docs/webadmin_modules.png)
+
 For MySQL, set module argument matching following format:
 ```
 mysql://username:password@localhost/database_name

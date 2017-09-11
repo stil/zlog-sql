@@ -20,4 +20,10 @@ For SQLite use following string format:
 sqlite://home/user/logs.sqlite
 ```
 
-5. Save changes. Logging to database is going to be active from now.
+or simply leave out the path
+```
+sqlite
+```
+in this case, logs are going to be written to the default path `~/.znc/moddata/zlog_sql/logs.sqlite`.
+
+5. Save changes. SQL table schema is going to be created automatically.

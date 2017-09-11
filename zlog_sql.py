@@ -30,6 +30,9 @@ class zlog_sql(znc.Module):
         """
         self.debug_hook()
         try:
+            if args.strip() == 'sqlite':
+                args = 'sqlite://' + os.path.join(self.GetSavePath(), 'logs.sqlite')
+
             self.db = TargetDatabase(args)
             return True
         except Exception as e:
@@ -358,6 +361,16 @@ CREATE TABLE IF NOT EXISTS `logs` (
         if match:
             self.type = 'sqlite'
             self.conn = sqlite3.connect(match.group(1))
+            self.conn.cursor().execute('''
+CREATE TABLE IF NOT EXISTS [logs](
+    [id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+    [created_at] DATETIME NOT NULL, 
+    [user] VARCHAR, 
+    [network] VARCHAR, 
+    [window] VARCHAR, 
+    [message] TEXT);
+''')
+            self.conn.commit()
             return
 
         raise Exception('Unsupported database type. Supported: mysql, sqlite.')

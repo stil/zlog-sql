@@ -337,6 +337,21 @@ class TargetDatabase:
                                         db=match.group(4),
                                         use_unicode=True,
                                         charset='utf8mb4')
+
+            self.conn.cursor().execute('''
+CREATE TABLE IF NOT EXISTS `logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `created_at` datetime NOT NULL,
+  `user` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `network` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `window` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`),
+  KEY `user` (`user`),
+  KEY `network` (`network`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED;
+''')
+            self.conn.commit()
             return
 
         match = re.search('sqlite://(.+)', dsn)

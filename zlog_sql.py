@@ -30,6 +30,10 @@ class zlog_sql(znc.Module):
         """
         self.debug_hook()
         try:
+            if args.strip() == '':
+                raise Exception('Missing argument. Provide connection string in format: ' +
+                                'mysql://user:pass@host/database_name or sqlite://path/to/db.sqlite.')
+
             if args.strip() == 'sqlite':
                 args = 'sqlite://' + os.path.join(self.GetSavePath(), 'logs.sqlite')
 

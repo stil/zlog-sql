@@ -14,6 +14,8 @@ For MySQL, set module argument matching following format:
 ```
 mysql://username:password@localhost/database_name
 ```
+**Important:** you need `PyMySQL` pip package for MySQL logging. Install it with `pip3 install PyMySQL` command.
+
 
 For SQLite use following string format:
 ```

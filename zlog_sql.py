@@ -14,10 +14,14 @@ import znc
 
 # noinspection PyPep8Naming
 class zlog_sql(znc.Module):
+    description = 'Logs all channels to a MySQL/SQLite database.'
     module_types = [znc.CModInfo.GlobalModule]
-    description = 'Log all channels to a MySQL/SQLite database.'
+
+    wiki_page = 'ZLog_SQL'
+
     has_args = True
     args_help_text = 'Connection string in format: mysql://user:pass@host/database_name or sqlite://path/to/db.sqlite'
+
     log_queue = multiprocessing.SimpleQueue()
     internal_log = None
     hook_debugging = False

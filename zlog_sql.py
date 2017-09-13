@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS `logs` (
   `window` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `message` TEXT COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
+  KEY `created_at` (`created_at`),
   KEY `user` (`user`),
   KEY `network` (`network`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED;

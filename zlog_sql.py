@@ -1,4 +1,5 @@
 import inspect
+import multiprocessing
 import os
 import pprint
 import re
@@ -16,6 +17,8 @@ class zlog_sql(znc.Module):
     description = 'Log all channels to a MySQL/SQLite database.'
     has_args = True
     args_help_text = 'Connection string in format: mysql://user:pass@host/database_name or sqlite://path/to/db.sqlite'
+    log_queue = multiprocessing.SimpleQueue()
+    internal_log = None
     hook_debugging = False
 
     def OnLoad(self, args, message):
@@ -28,19 +31,22 @@ class zlog_sql(znc.Module):
         :param message: A message that may be displayed to the user after loading the module.
         :return: True if the module loaded successfully, else False.
         """
+        self.internal_log = InternalLog(self.GetSavePath())
         self.debug_hook()
+
         try:
-            if args.strip() == '':
-                raise Exception('Missing argument. Provide connection string in format: ' +
-                                'mysql://user:pass@host/database_name or sqlite://path/to/db.sqlite.')
-
-            if args.strip() == 'sqlite':
-                args = 'sqlite://' + os.path.join(self.GetSavePath(), 'logs.sqlite')
-
-            self.db = TargetDatabase(args)
+            db = self.parse_args(args)
+            multiprocessing.Process(target=DatabaseThread.worker_safe,
+                                    args=(db, self.log_queue, self.internal_log)).start()
             return True
         except Exception as e:
             message.s = str(e)
+
+            with self.internal_log.error() as target:
+                target.write('Could not initialize module caused by: {} {}\n'.format(type(e), str(e)))
+                target.write('Stack trace: ' + traceback.format_exc())
+                target.write('\n')
+
             return False
 
     def GetServer(self):
@@ -49,12 +55,11 @@ class zlog_sql(znc.Module):
         if pServer is None:
             return '(no server)'
 
-        if pServer.IsSSL():
-            sSSL = "+"
-        else:
-            sSSL = ""
-
+        sSSL = '+' if pServer.IsSSL() else ''
         return pServer.GetName() + ' ' + sSSL + pServer.GetPort()
+
+    # GENERAL IRC EVENTS
+    # ==================
 
     def OnIRCConnected(self):
         """
@@ -295,22 +300,18 @@ class zlog_sql(znc.Module):
     # =======
 
     def put_log(self, line, window="Status"):
-        try:
-            self.db.insert_into('logs', {
-                'created_at': datetime.utcnow().isoformat(),
-                'user': self.GetUser().GetUserName() if self.GetUser() is not None else None,
-                'network': self.GetNetwork().GetName() if self.GetUser() is not None else None,
-                'window': window,
-                'message': line})
+        """
+        Adds the log line to database write queue.
+        """
+        self.log_queue.put({
+            'created_at': datetime.utcnow().isoformat(),
+            'user': self.GetUser().GetUserName() if self.GetUser() is not None else None,
+            'network': self.GetNetwork().GetName() if self.GetUser() is not None else None,
+            'window': window,
+            'message': line})
 
-        except Exception as e:
-            with open(os.path.join(self.GetSavePath(), 'error.log'), 'a') as file:
-                file.write('Could not save to database caused by: {0} {1}\n'.format(type(e), str(e)))
-                file.write('Stack trace: ' + traceback.format_exc())
-                file.write('\n')
-
-    # DEBUGGING
-    # =========
+    # DEBUGGING HOOKS
+    # ===============
 
     def debug_hook(self):
         """
@@ -323,49 +324,115 @@ class zlog_sql(znc.Module):
         frameinfo = inspect.stack()[1]
         argvals = frameinfo.frame.f_locals
 
-        with open(os.path.join(self.GetSavePath(), 'debug.log'), 'a') as file:
-            file.write('Called method: ' + frameinfo.function + '()\n')
+        with self.internal_log.debug() as target:
+            target.write('Called method: ' + frameinfo.function + '()\n')
             for argname in argvals:
                 if argname == 'self':
                     continue
-                file.write('    ' + argname + ' -> ' + pprint.pformat(argvals[argname]) + '\n')
-            file.write('\n')
+                target.write('    ' + argname + ' -> ' + pprint.pformat(argvals[argname]) + '\n')
+            target.write('\n')
 
+    # ARGUMENT PARSING
+    # ================
 
-class TargetDatabase:
-    def __init__(self, dsn):
+    def parse_args(self, args):
+        if args.strip() == '':
+            raise Exception('Missing argument. Provide connection string as an argument.')
 
-        match = re.search('mysql://(.+?):(.+?)@(.+?)/(.+)', dsn)
+        match = re.search('^\s*sqlite(?:://(.+))?\s*$', args)
         if match:
-            self.type = 'mysql'
-            self.conn = pymysql.connect(host=match.group(3),
-                                        user=match.group(1),
-                                        passwd=match.group(2),
-                                        db=match.group(4),
-                                        use_unicode=True,
-                                        charset='utf8mb4')
+            if match.group(1) is None:
+                return SQLiteDatabase({'database': os.path.join(self.GetSavePath(), 'logs.sqlite')})
+            else:
+                return SQLiteDatabase({'database': match.group(1)})
 
-            self.conn.cursor().execute('''
+        match = re.search('^\s*mysql://(.+?):(.+?)@(.+?)/(.+)\s*$', args)
+        if match:
+            return MySQLDatabase({'host': match.group(3),
+                                  'user': match.group(1),
+                                  'passwd': match.group(2),
+                                  'db': match.group(4)})
+
+        raise Exception('Unrecognized connection string. Check the documentation.')
+
+
+class DatabaseThread:
+    @staticmethod
+    def worker_safe(db, log_queue, internal_log):
+        try:
+            DatabaseThread.worker(db, log_queue, internal_log)
+        except Exception as e:
+            with internal_log.error() as target:
+                target.write('Unrecoverable exception in worker thread: {0} {1}\n'.format(type(e), str(e)))
+                target.write('Stack trace: ' + traceback.format_exc())
+                target.write('\n')
+            raise
+
+    @staticmethod
+    def worker(db, log_queue: multiprocessing.SimpleQueue, internal_log: InternalLog) -> None:
+        db.connect()
+
+        while True:
+            item = log_queue.get()
+            if item is None:
+                break
+
+            try:
+                db.insert_into('logs', item)
+            except Exception as e:
+                with internal_log.error() as target:
+                    target.write('Could not save to database caused by: {0} {1}\n'.format(type(e), str(e)))
+                    target.write('Stack trace: ' + traceback.format_exc())
+                    target.write('\n')
+
+
+class InternalLog:
+    def __init__(self, save_path):
+        self.save_path = save_path
+
+    def debug(self):
+        return open(os.path.join(self.save_path, 'debug.log'), 'a')
+
+    def error(self):
+        return open(os.path.join(self.save_path, 'error.log'), 'a')
+
+
+class Database:
+    def __init__(self, dsn):
+        self.dsn = dsn
+        self.conn = None
+
+
+class MySQLDatabase(Database):
+    def connect(self):
+        self.conn = pymysql.connect(**self.dsn, use_unicode=True, charset='utf8mb4')
+        self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS `logs` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `created_at` datetime NOT NULL,
-  `user` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `network` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `window` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `message` text COLLATE utf8mb4_unicode_ci,
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `created_at` DATETIME NOT NULL,
+  `user` VARCHAR(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `network` VARCHAR(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `window` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` TEXT COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   KEY `user` (`user`),
   KEY `network` (`network`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED;
 ''')
-            self.conn.commit()
-            return
+        self.conn.commit()
 
-        match = re.search('sqlite://(.+)', dsn)
-        if match:
-            self.type = 'sqlite'
-            self.conn = sqlite3.connect(match.group(1))
-            self.conn.cursor().execute('''
+    def insert_into(self, table, row):
+        cols = ', '.join('`{}`'.format(col) for col in row.keys())
+        vals = ', '.join('%({})s'.format(col) for col in row.keys())
+        sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, cols, vals)
+        self.conn.cursor().execute(sql, row)
+        self.conn.commit()
+
+
+class SQLiteDatabase(Database):
+    def connect(self):
+        self.conn = sqlite3.connect(**self.dsn)
+        self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS [logs](
     [id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
     [created_at] DATETIME NOT NULL, 
@@ -374,31 +441,11 @@ CREATE TABLE IF NOT EXISTS [logs](
     [window] VARCHAR, 
     [message] TEXT);
 ''')
-            self.conn.commit()
-            return
-
-        raise Exception('Unsupported database type. Supported: mysql, sqlite.')
+        self.conn.commit()
 
     def insert_into(self, table, row):
-        if self.type == 'mysql':
-            self.mysql_insert_into(self.conn, table, row)
-        elif self.type == 'sqlite':
-            self.sqlite_insert_into(self.conn, table, row)
-        else:
-            raise Exception('Unsupported db type {0}'.format(self.type))
-
-    @staticmethod
-    def mysql_insert_into(conn, table, row):
-        cols = ', '.join('`{}`'.format(col) for col in row.keys())
-        vals = ', '.join('%({})s'.format(col) for col in row.keys())
-        sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, cols, vals)
-        conn.cursor().execute(sql, row)
-        conn.commit()
-
-    @staticmethod
-    def sqlite_insert_into(conn, table, row):
         cols = ', '.join('[{}]'.format(col) for col in row.keys())
         vals = ', '.join(':{}'.format(col) for col in row.keys())
         sql = 'INSERT INTO [{}] ({}) VALUES ({})'.format(table, cols, vals)
-        conn.cursor().execute(sql, row)
-        conn.commit()
+        self.conn.cursor().execute(sql, row)
+        self.conn.commit()

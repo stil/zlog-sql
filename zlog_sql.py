@@ -402,7 +402,7 @@ class InternalLog:
 
 
 class Database:
-    def __init__(self, dsn: str):
+    def __init__(self, dsn: dict):
         self.dsn = dsn
         self.conn = None
 

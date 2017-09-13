@@ -1,6 +1,12 @@
 # zlog-sql
 MySQL/SQLite logging plugin for ZNC IRC bouncer written in Python 3
 
+## Features
+* Supports both MySQL and SQLite databases.
+* Asynchronous database writes on separate thread. Guarantees that ZNC won't hang during SQL connection timeout.
+* Automatic table creation (`CREATE TABLE IF NOT EXIST`)
+* Retry after failed inserts. When database server is offline, logs are buffered to memory. They are saved when database is back online, so you won't lose logs during MySQL outages. 
+
 
 ## Quick start
 1. Copy `zlog_sql.py` to `~/.znc/modules/zlog_sql.py`.

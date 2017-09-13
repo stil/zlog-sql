@@ -358,7 +358,7 @@ class zlog_sql(znc.Module):
 
 class DatabaseThread:
     @staticmethod
-    def worker_safe(db, log_queue, internal_log):
+    def worker_safe(db, log_queue: multiprocessing.SimpleQueue, internal_log) -> None:
         try:
             DatabaseThread.worker(db, log_queue, internal_log)
         except Exception as e:
@@ -369,7 +369,7 @@ class DatabaseThread:
             raise
 
     @staticmethod
-    def worker(db, log_queue: multiprocessing.SimpleQueue, internal_log: InternalLog) -> None:
+    def worker(db, log_queue: multiprocessing.SimpleQueue, internal_log) -> None:
         db.connect()
 
         while True:
@@ -387,7 +387,7 @@ class DatabaseThread:
 
 
 class InternalLog:
-    def __init__(self, save_path):
+    def __init__(self, save_path: str):
         self.save_path = save_path
 
     def debug(self):
@@ -398,13 +398,13 @@ class InternalLog:
 
 
 class Database:
-    def __init__(self, dsn):
+    def __init__(self, dsn: str):
         self.dsn = dsn
         self.conn = None
 
 
 class MySQLDatabase(Database):
-    def connect(self):
+    def connect(self) -> None:
         self.conn = pymysql.connect(**self.dsn, use_unicode=True, charset='utf8mb4')
         self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS `logs` (
@@ -430,7 +430,7 @@ CREATE TABLE IF NOT EXISTS `logs` (
 
 
 class SQLiteDatabase(Database):
-    def connect(self):
+    def connect(self) -> None:
         self.conn = sqlite3.connect(**self.dsn)
         self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS [logs](
@@ -443,7 +443,7 @@ CREATE TABLE IF NOT EXISTS [logs](
 ''')
         self.conn.commit()
 
-    def insert_into(self, table, row):
+    def insert_into(self, table: str, row: dict) -> None:
         cols = ', '.join('[{}]'.format(col) for col in row.keys())
         vals = ', '.join(':{}'.format(col) for col in row.keys())
         sql = 'INSERT INTO [{}] ({}) VALUES ({})'.format(table, cols, vals)

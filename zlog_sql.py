@@ -3,12 +3,10 @@ import multiprocessing
 import os
 import pprint
 import re
-import sqlite3
 import traceback
-from time import sleep
 from datetime import datetime
+from time import sleep
 
-import pymysql
 import znc
 
 
@@ -432,6 +430,7 @@ class Database:
 
 class MySQLDatabase(Database):
     def connect(self) -> None:
+        import pymysql
         self.conn = pymysql.connect(**self.dsn, use_unicode=True, charset='utf8mb4')
         self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS `logs` (
@@ -463,6 +462,7 @@ CREATE TABLE IF NOT EXISTS `logs` (
 
 class SQLiteDatabase(Database):
     def connect(self) -> None:
+        import sqlite3
         self.conn = sqlite3.connect(**self.dsn)
         self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS [logs](

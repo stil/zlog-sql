@@ -49,6 +49,10 @@ class zlog_sql(znc.Module):
 
             return False
 
+    def __del__(self):
+        # Terminate worker process.
+        self.log_queue.put(None)
+
     def GetServer(self):
         pServer = self.GetNetwork().GetCurrentServer()
 

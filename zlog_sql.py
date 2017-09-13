@@ -5,6 +5,7 @@ import pprint
 import re
 import sqlite3
 import traceback
+from time import sleep
 from datetime import datetime
 
 import pymysql
@@ -382,12 +383,23 @@ class DatabaseThread:
                 break
 
             try:
+                db.ensure_connected()
                 db.insert_into('logs', item)
             except Exception as e:
+                sleep_for = 10
+
                 with internal_log.error() as target:
                     target.write('Could not save to database caused by: {0} {1}\n'.format(type(e), str(e)))
+                    target.write('Database handle state: {}\n'.format(db.conn.open))
                     target.write('Stack trace: ' + traceback.format_exc())
                     target.write('\n')
+                    target.write('Retry in {} s\n'.format(sleep_for))
+
+                sleep(sleep_for)
+
+                with internal_log.error() as target:
+                    target.write('Retrying now.\n'.format(sleep_for))
+                    log_queue.put(item)
 
 
 class InternalLog:
@@ -433,6 +445,10 @@ CREATE TABLE IF NOT EXISTS `logs` (
 ''')
         self.conn.commit()
 
+    def ensure_connected(self):
+        if self.conn.open is False:
+            self.connect()
+
     def insert_into(self, table, row):
         cols = ', '.join('`{}`'.format(col) for col in row.keys())
         vals = ', '.join('%({})s'.format(col) for col in row.keys())
@@ -454,6 +470,9 @@ CREATE TABLE IF NOT EXISTS [logs](
     [message] TEXT);
 ''')
         self.conn.commit()
+
+    def ensure_connected(self):
+        pass
 
     def insert_into(self, table: str, row: dict) -> None:
         cols = ', '.join('[{}]'.format(col) for col in row.keys())

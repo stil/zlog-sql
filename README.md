@@ -25,7 +25,7 @@ mysql://username:password@localhost/database_name
 
 For SQLite use following string format:
 ```
-sqlite://home/user/logs.sqlite
+sqlite:///home/user/logs.sqlite
 ```
 
 or simply leave out the path

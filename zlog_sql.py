@@ -395,10 +395,17 @@ class InternalLog:
         self.save_path = save_path
 
     def debug(self):
-        return open(os.path.join(self.save_path, 'debug.log'), 'a')
+        return self.open('debug')
 
     def error(self):
-        return open(os.path.join(self.save_path, 'error.log'), 'a')
+        return self.open('error')
+
+    def open(self, level: str):
+        target = open(os.path.join(self.save_path, level + '.log'), 'a')
+        line = 'Log opened at: {} UTC\n'.format(datetime.utcnow())
+        target.write(line)
+        target.write('=' * len(line) + '\n\n')
+        return target
 
 
 class Database:

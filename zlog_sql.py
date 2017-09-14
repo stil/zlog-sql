@@ -431,7 +431,7 @@ class Database:
 class MySQLDatabase(Database):
     def connect(self) -> None:
         import pymysql
-        self.conn = pymysql.connect(**self.dsn, use_unicode=True, charset='utf8mb4')
+        self.conn = pymysql.connect(use_unicode=True, charset='utf8mb4', **self.dsn)
         self.conn.cursor().execute('''
 CREATE TABLE IF NOT EXISTS `logs` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,

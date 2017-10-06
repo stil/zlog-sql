@@ -1,4 +1,5 @@
 import inspect
+import json
 import multiprocessing
 import os
 import pprint
@@ -394,7 +395,9 @@ class DatabaseThread:
                     target.write('Could not save to database caused by: {0} {1}\n'.format(type(e), str(e)))
                     target.write('Database handle state: {}\n'.format(db.conn.open))
                     target.write('Stack trace: ' + traceback.format_exc())
-                    target.write('\n')
+                    target.write('Current log: ')
+                    json.dump(item, target)
+                    target.write('\n\n')
                     target.write('Retry in {} s\n'.format(sleep_for))
 
                 sleep(sleep_for)

@@ -316,7 +316,7 @@ class zlog_sql(znc.Module):
             'user': self.GetUser().GetUserName() if self.GetUser() is not None else None,
             'network': self.GetNetwork().GetName() if self.GetUser() is not None else None,
             'window': window,
-            'message': line})
+            'message': line.encode('utf8', 'replace').decode('utf8')})
 
     # DEBUGGING HOOKS
     # ===============

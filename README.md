@@ -7,6 +7,12 @@ MySQL/SQLite logging plugin for ZNC IRC bouncer written in Python 3
 * Automatic table creation (`CREATE TABLE IF NOT EXIST`)
 * Retry after failed inserts. When database server is offline, logs are buffered to memory. They are saved when database is back online, so you won't lose logs during MySQL outages. 
 
+## Some statistics
+After having this plugin enabled for around 2 months, below are my statistics of MySQL table:
+* Total logs count: more than 810k
+* Space usage: 66 MB (data 45 MB, index 21 MB)
+
+MySQL gives great compression ratio and is easily searchable. SQLite database doesn't support compression, but they're easier to setup and migrate.
 
 ## Quick start
 1. Copy `zlog_sql.py` to `~/.znc/modules/zlog_sql.py`.

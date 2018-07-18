@@ -20,7 +20,9 @@ class zlog_sql(znc.Module):
     wiki_page = 'ZLog_SQL'
 
     has_args = True
-    args_help_text = 'Connection string in format: mysql://user:pass@host/database_name or sqlite://path/to/db.sqlite'
+    args_help_text = ('Connection string in format: mysql://user:pass@host/database_name'
+                      ' or postgres://user:pass@host/database_name'
+                      ' or sqlite://path/to/db.sqlite')
 
     log_queue = multiprocessing.SimpleQueue()
     internal_log = None
@@ -362,6 +364,13 @@ class zlog_sql(znc.Module):
                                   'passwd': match.group(2),
                                   'db': match.group(4)})
 
+        match = re.search('^\s*postgres://(.+?):(.+?)@(.+?)/(.+)\s*$', args)
+        if match:
+            return PostgresDatabase({'host': match.group(3),
+                                     'user': match.group(1),
+                                     'password': match.group(2),
+                                     'database': match.group(4)})
+
         raise Exception('Unrecognized connection string. Check the documentation.')
 
 
@@ -394,7 +403,8 @@ class DatabaseThread:
 
                 with internal_log.error() as target:
                     target.write('Could not save to database caused by: {0} {1}\n'.format(type(e), str(e)))
-                    target.write('Database handle state: {}\n'.format(db.conn.open))
+                    if 'open' in dir(db.conn):
+                        target.write('Database handle state: {}\n'.format(db.conn.open))
                     target.write('Stack trace: ' + traceback.format_exc())
                     target.write('Current log: ')
                     json.dump(item, target)
@@ -431,6 +441,33 @@ class Database:
         self.dsn = dsn
         self.conn = None
 
+class PostgresDatabase(Database):
+    def connect(self) -> None:
+        import psycopg2
+        self.conn = psycopg2.connect(**self.dsn)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.conn.cursor().execute('''
+CREATE TABLE IF NOT EXISTS logs (
+  "id" BIGSERIAL NOT NULL,
+  "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "user" VARCHAR(128) DEFAULT NULL,
+  "network" VARCHAR(128) DEFAULT NULL,
+  "window" VARCHAR(255) NOT NULL,
+  "message" TEXT,
+  PRIMARY KEY (id)
+);
+''')
+        self.conn.commit()
+    def ensure_connected(self):
+        if self.conn.status == 0:
+            self.connect()
+    def insert_into(self, table, row):
+        cols = ', '.join('"{}"'.format(col) for col in row.keys())
+        vals = ', '.join('%({})s'.format(col) for col in row.keys())
+        sql = 'INSERT INTO {} ({}) VALUES ({})'.format(table, cols, vals)
+        self.conn.cursor().execute(sql, row)
+        self.conn.commit()
 
 class MySQLDatabase(Database):
     def connect(self) -> None:

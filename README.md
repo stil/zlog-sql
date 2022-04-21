@@ -1,6 +1,10 @@
 # zlog-sql
 MySQL/SQLite logging plugin for ZNC IRC bouncer written in Python 3
 
+## Update 21/04/2022
+
+I added the ability to parse port in database connection string specified as this module argument
+
 ## Features
 * Supports MySQL, PostgreSQL and SQLite databases.
 * Asynchronous database writes on separate thread. Guarantees that ZNC won't hang during SQL connection timeout.

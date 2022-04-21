@@ -25,14 +25,14 @@ MySQL gives great compression ratio and is easily searchable. SQLite database do
 ### MySQL
 For MySQL, set module argument matching following format:
 ```
-mysql://username:password@localhost/database_name
+mysql://username:password@localhost:port/database_name
 ```
 **Important:** you need [`PyMySQL`](https://github.com/PyMySQL/PyMySQL) pip package for MySQL logging. Install it with `pip3 install PyMySQL` command.
 
 ### PostgreSQL
 For PostgreSQL, set module argument matching following format:
 ```
-postgres://username:password@localhost/database_name
+postgres://username:password@localhost:port/database_name
 ```
 **Important:** you need [`psycopg2`](https://github.com/psycopg/psycopg2) pip package for PostgreSQL logging. Install it with `pip3 install psycopg2` command.
 

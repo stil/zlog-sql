@@ -20,8 +20,8 @@ class zlog_sql(znc.Module):
     wiki_page = 'ZLog_SQL'
 
     has_args = True
-    args_help_text = ('Connection string in format: mysql://user:pass@host/database_name'
-                      ' or postgres://user:pass@host/database_name'
+    args_help_text = ('Connection string in format: mysql://user:pass@host:port/database_name'
+                      ' or postgres://user:pass@host:port/database_name'
                       ' or sqlite://path/to/db.sqlite')
 
     log_queue = multiprocessing.SimpleQueue()
@@ -357,19 +357,35 @@ class zlog_sql(znc.Module):
             else:
                 return SQLiteDatabase({'database': match.group(1)})
 
-        match = re.search('^\s*mysql://(.+?):(.+?)@(.+?)/(.+)\s*$', args)
+        match = re.search('^\s*mysql://(.+?):(.+?)@(.+?)(?::(.*))?/(.+)\s*$', args)
         if match:
+            parsedPort = match.group(4)
             return MySQLDatabase({'host': match.group(3),
-                                  'user': match.group(1),
-                                  'passwd': match.group(2),
-                                  'db': match.group(4)})
+                'port': int(parsedPort),
+                'user': match.group(1),
+                'passwd': match.group(2),
+                'db': match.group(5)}
+            ) if parsedPort != None else MySQLDatabase({'host': match.group(3),
+                'user': match.group(1),
+                'passwd': match.group(2),
+                'db': match.group(5)}
+            )
 
-        match = re.search('^\s*postgres://(.+?):(.+?)@(.+?)/(.+)\s*$', args)
+        match = re.search('^\s*postgres://(.+?):(.+?)@(.+?)(?::(.*))?/(.+)\s*$', args)
         if match:
-            return PostgresDatabase({'host': match.group(3),
-                                     'user': match.group(1),
-                                     'password': match.group(2),
-                                     'database': match.group(4)})
+            parsedPort = match.group(4)
+            return PostgresDatabase({
+                'host': match.group(3),
+                'port': int(parsedPort),
+                'user': match.group(1),
+                'password': match.group(2),
+                'database': match.group(5)
+            }) if parsedPort != None else PostgresDatabase({
+                'host': match.group(3),
+                'user': match.group(1),
+                'password': match.group(2),
+                'database': match.group(5)
+            })
 
         raise Exception('Unrecognized connection string. Check the documentation.')
 

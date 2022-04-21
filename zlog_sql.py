@@ -20,8 +20,8 @@ class zlog_sql(znc.Module):
     wiki_page = 'ZLog_SQL'
 
     has_args = True
-    args_help_text = ('Connection string in format: mysql://user:pass@host/database_name'
-                      ' or postgres://user:pass@host/database_name'
+    args_help_text = ('Connection string in format: mysql://user:pass@host:port/database_name'
+                      ' or postgres://user:pass@host:port/database_name'
                       ' or sqlite://path/to/db.sqlite')
 
     log_queue = multiprocessing.SimpleQueue()
